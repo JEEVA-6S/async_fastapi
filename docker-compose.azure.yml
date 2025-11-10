@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Using existing external RabbitMQ container (already running)
+  # Make sure RabbitMQ is running: docker ps | grep rabbitmq
+  
+  fastapi:
+    build: .
+    container_name: fastapi-app
+    ports:
+      - "8000:8000"
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@host.docker.internal:5672//
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  celery-worker:
+    build: .
+    container_name: celery-worker
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@host.docker.internal:5672//
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+
+  celery-beat:
+    build: .
+    container_name: celery-beat
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@host.docker.internal:5672//
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - celery-worker
+    networks:
+      - app-network
+    command: celery -A app.celery_app beat --loglevel=info
+
+  flower:
+    build: .
+    container_name: flower
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@host.docker.internal:5672//
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - celery-worker
+    networks:
+      - app-network
+    command: celery -A app.celery_app flower --port=5555
+
+networks:
+  app-network:
+    driver: bridge
