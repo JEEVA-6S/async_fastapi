@@ -1,4 +1,4 @@
-# FastAPI + Celery + RabbitMQ Async Task Queue# FastAPI + Celery + RabbitMQ Async Task Queue
+# FastAPI + Celery + RabbitMQ Async Task Queue
 
 
 
